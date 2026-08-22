@@ -50,7 +50,7 @@ Deben aprobarse por separado:
 - Complementos: Pagos 2.0, Detallista 1.3, Carta Porte 3.1 y Comercio Exterior 2.0.
 - Rechazos: RFC, nombre/CP/régimen, catálogos vencidos, cálculos, UUID concatenados, CSD vencido/no coincidente y XML/XSD inválido.
 - Resiliencia: timeout, SOAP Fault, respuesta incompleta, incidencia 307, duplicidad e idempotencia.
-- Cancelación: motivos 01/02/03/04, folio sustituto cuando aplique, cancelación firmada y consulta posterior de estado.
+- Cancelación: motivos 01/02/03/04, folio sustituto cuando aplique, cancelación firmada y consulta posterior de estado. En demo se debe respetar la espera documentada por Finkok de 2 a 5 minutos después del timbrado.
 
 ## Evidencias requeridas
 
