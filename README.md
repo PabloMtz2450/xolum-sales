@@ -21,8 +21,20 @@ XOLUM Sales es el núcleo comercial modular de XOLUM para administrar clientes, 
 - Catálogo con datos comerciales, fiscales y logísticos.
 - Inventario multi-almacén y disponibilidad para promesa.
 - Cotizaciones y pedidos sin recaptura.
+- Snapshot fiscal inmutable preparado para CFDI 4.0.
+- OC, posición y código de cliente conservados por concepto.
+- Complementos versionados, comenzando por Detallista 1.3.
+- Addendas separadas como producto independiente.
 - Integration Hub preparado para ERP, XOLUM TMS y XOLUM Fiscal.
 - Multiempresa, roles y auditoría desde origen.
+
+## Integración con TMS
+
+## Preparación para facturación
+
+Sales no timbra ni permite reconstruir manualmente la factura. Al liberar un pedido crea un snapshot fiscal validado y bloqueado, listo para que XOLUM Fiscal lo transforme a XML CFDI 4.0 y lo envíe al PAC.
+
+Consulta `docs/CFDI-40-HANDOFF.md` y `docs/INVOICE-PREPARATION-API.md`.
 
 ## Integración con TMS
 
