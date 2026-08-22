@@ -35,6 +35,7 @@ model Organization {
   priceLists    PriceList[]
   orders        SalesOrder[]
   opportunities Opportunity[]
+  invoicePreparations InvoicePreparation[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }
@@ -76,6 +77,7 @@ model Customer {
   addresses         Address[]
   opportunities     Opportunity[]
   orders            SalesOrder[]
+  invoicePreparations InvoicePreparation[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   @@unique([organizationId, code])
@@ -252,6 +254,7 @@ model SalesOrder {
   customer          Customer     @relation(fields: [customerId], references: [id])
   deliveryAddress   Address      @relation(fields: [deliveryAddressId], references: [id])
   lines             SalesOrderLine[]
+  invoicePreparations InvoicePreparation[]
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   @@unique([organizationId, number])
@@ -263,9 +266,114 @@ model SalesOrderLine {
   productId String
   quantity  Decimal
   unitPrice Decimal
-  discount  Decimal    @default(0)
-  order     SalesOrder @relation(fields: [orderId], references: [id])
+  discount              Decimal    @default(0)
+  customerPurchaseOrder String?
+  customerPoLine        String?
+  customerItemCode      String?
+  order                  SalesOrder     SalesOrder @relation(fields: [orderId], references: [id])
   product   Product    @relation(fields: [productId], references: [id])
+}
+
+
+model InvoicePreparation {
+  id                  String       @id @default(cuid())
+  organizationId      String
+  customerId          String
+  salesOrderId        String
+  version             Int          @default(1)
+  status              String       @default("DRAFT")
+  cfdiVersion         String       @default("4.0")
+  voucherType         String       @default("I")
+  series              String?
+  currency            String       @default("MXN")
+  exchangeRate        Decimal?
+  paymentMethod       String
+  paymentForm         String?
+  exportCode          String       @default("01")
+  placeOfIssue        String
+  issuerSnapshot      Json
+  receiverSnapshot    Json
+  globalInformation   Json?
+  relatedCfdis        Json?
+  complementCode      String?
+  complementVersion   String?
+  complementPayload   Json?
+  addendaRequired     Boolean      @default(false)
+  addendaCode         String?
+  addendaPayload      Json?
+  subtotal            Decimal
+  discount            Decimal      @default(0)
+  transferredTaxes    Decimal      @default(0)
+  withheldTaxes       Decimal      @default(0)
+  total               Decimal
+  payloadHash         String?
+  lockedAt            DateTime?
+  lockedBy            String?
+  validationErrors    Json?
+  fiscalDocumentId    String?
+  fiscalSyncStatus    String?
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  customer            Customer     @relation(fields: [customerId], references: [id])
+  salesOrder          SalesOrder   @relation(fields: [salesOrderId], references: [id])
+  concepts            FiscalConcept[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  @@unique([salesOrderId, version])
+}
+
+model FiscalConcept {
+  id                    String             @id @default(cuid())
+  invoicePreparationId  String
+  orderLineId           String?
+  lineNumber            Int
+  productServiceCode    String
+  internalSku           String?
+  customerItemCode      String?
+  gtin                  String?
+  identificationNumber  String?
+  quantity              Decimal
+  unitCode              String
+  unitName              String?
+  description           String
+  unitValue             Decimal
+  amount                Decimal
+  discount              Decimal           @default(0)
+  taxObjectCode         String
+  customerPurchaseOrder String?
+  customerPoLine        String?
+  customsInformation    Json?
+  propertyAccount       String?
+  thirdPartyAccount     Json?
+  preparation           InvoicePreparation @relation(fields: [invoicePreparationId], references: [id], onDelete: Cascade)
+  taxes                 FiscalConceptTax[]
+  @@unique([invoicePreparationId, lineNumber])
+}
+
+model FiscalConceptTax {
+  id              String        @id @default(cuid())
+  fiscalConceptId String
+  direction       String
+  taxCode         String
+  factorType      String
+  rateOrQuota     Decimal?
+  base            Decimal
+  amount          Decimal?
+  concept         FiscalConcept @relation(fields: [fiscalConceptId], references: [id], onDelete: Cascade)
+}
+
+model FiscalSchemaCatalog {
+  id          String   @id @default(cuid())
+  code        String
+  version     String
+  namespace   String
+  xsdUrl      String
+  xsltUrl     String?
+  activeFrom  DateTime?
+  activeTo    DateTime?
+  sha256      String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  @@unique([code, version])
 }
 
 model IntegrationDelivery {
