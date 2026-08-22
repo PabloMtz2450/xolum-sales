@@ -6,7 +6,13 @@
       "id": "SAT-CFDI40",
       "document": "Matriz de códigos de error para CFDI 4.0",
       "url": "https://www.sat.gob.mx/cs/Satellite?blobcol=urldata&blobkey=id&blobtable=MungoBlobs&blobwhere=1461175250493&ssbinary=true",
-      "appliesTo": ["I", "E", "T", "N", "P"],
+      "appliesTo": [
+        "I",
+        "E",
+        "T",
+        "N",
+        "P"
+      ],
       "status": "PENDING_VERIFIED_IMPORT",
       "requiredCoverage": 100
     },
@@ -14,8 +20,40 @@
       "id": "SAT-REP20",
       "document": "Matriz de códigos de error del Complemento para Recepción de Pagos 2.0",
       "url": "https://www.sat.gob.mx/cs/Satellite?blobcol=urldata&blobkey=id&blobtable=MungoBlobs&blobwhere=1461175071013&ssbinary=true",
-      "appliesTo": ["P"],
+      "appliesTo": [
+        "P"
+      ],
       "status": "PENDING_VERIFIED_IMPORT",
+      "requiredCoverage": 100
+    },
+    {
+      "id": "SAT-ANEXO29-RMF2026",
+      "document": "Anexo 29 de la RMF 2026",
+      "url": "https://www.sat.gob.mx/minisitio/NormatividadRMFyRGCE/documentos2026/rmf/anexos/Anexo_29_RMF2026-09012026.pdf",
+      "appliesTo": [
+        "I",
+        "E",
+        "T",
+        "N",
+        "P"
+      ],
+      "publishedAt": "2026-01-09",
+      "status": "SOURCE_REGISTERED",
+      "requiredCoverage": 100
+    },
+    {
+      "id": "SAT-ANEXO29-RMF2026-M1",
+      "document": "Primera Modificación al Anexo 29 de la RMF 2026",
+      "url": "https://www.sat.gob.mx/minisitio/NormatividadRMFyRGCE/documentos2026/rmf/anexos/Primera-Modificacion-Anexo-29-DOF-17072026.pdf",
+      "appliesTo": [
+        "I",
+        "E",
+        "T",
+        "N",
+        "P"
+      ],
+      "publishedAt": "2026-07-17",
+      "status": "SOURCE_REGISTERED",
       "requiredCoverage": 100
     }
   ],
