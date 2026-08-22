@@ -81,10 +81,10 @@ export type InvoicePreparationPayload = {
   schemaVersion: "xolum.sales.invoice-preparation.v1";
   cfdi: {
     version: "4.0";
-    voucherType: "I" | "E" | "T";
+    voucherType: "I" | "E" | "T" | "P" | "N";
     currency: string;
     exchangeRate?: string;
-    paymentMethod: "PUE" | "PPD";
+    paymentMethod?: "PUE" | "PPD";
     paymentForm?: string;
     exportCode: "01" | "02" | "03" | "04";
     placeOfIssue: string;
