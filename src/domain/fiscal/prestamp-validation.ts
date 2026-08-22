@@ -1,4 +1,5 @@
 import type { InvoicePreparationPayload, ValidationIssue } from "../cfdi40";
+import { validateRep20 } from "./rules/rep20-rules";
 
 export const PRESTAMP_LAYERS = [
   "DATA_FORMAT",
@@ -254,6 +255,8 @@ export function validateBeforeStamping(document: InvoicePreparationPayload, cont
       ruleCode: rule.code, layer: rule.layer, source: rule.source.url, version: rule.version,
       severity: rule.severity, path: "cfdi", code: rule.code, message: rule.message,
     }));
+
+  findings.push(...validateRep20(document));
 
   const passedLayers = PRESTAMP_LAYERS.filter(layer => !findings.some(f => f.layer === layer));
   return { ok: findings.every(f => f.severity !== "ERROR") && passedLayers.length === 9, profile, passedLayers, findings };
