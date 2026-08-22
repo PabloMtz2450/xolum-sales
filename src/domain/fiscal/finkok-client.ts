@@ -74,8 +74,7 @@ export class FinkokClient {
     private readonly password: string,
     private readonly environment: keyof typeof FINKOK_ENDPOINTS = "SANDBOX",
     private readonly clientFactory: (wsdl: string) => Promise<Client> = async wsdl => {
-      const [client] = await createClientAsync(wsdl, { disableCache: true });
-      return client;
+      return createClientAsync(wsdl, { disableCache: true });
     },
   ) {
     if (!username || !password) throw new Error("FINKOK_CREDENTIALS_REQUIRED");
