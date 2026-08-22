@@ -82,7 +82,7 @@ export class FinkokClient {
 
   private async stampCall(method: "stampAsync" | "quick_stampAsync" | "stampedAsync", xml: string) {
     const client = await this.clientFactory(FINKOK_ENDPOINTS[this.environment].stamp);
-    const operation = client[method] as ((args: Record<string, string>) => Promise<unknown>) | undefined;
+    const operation = (client as unknown as Record<string, unknown>)[method] as ((args: Record<string, string>) => Promise<unknown>) | undefined;
     if (!operation) throw new Error(`FINKOK_WSDL_METHOD_MISSING: ${method}`);
     return operation.call(client, { xml, username: this.username, password: this.password });
   }
@@ -102,5 +102,26 @@ export class FinkokClient {
 
   async quickStamp(xml: string) {
     return parseFinkokStampResponse(await this.stampCall("quick_stampAsync", xml), sha256(xml));
+  }
+
+  private async cancelCall(method: "cancel_signatureAsync" | "get_sat_statusAsync", args: Record<string, string | boolean>) {
+    const client = await this.clientFactory(FINKOK_ENDPOINTS[this.environment].cancel);
+    const operation = (client as unknown as Record<string, unknown>)[method] as ((parameters: Record<string, string | boolean>) => Promise<unknown>) | undefined;
+    if (!operation) throw new Error(`FINKOK_WSDL_METHOD_MISSING: ${method}`);
+    return operation.call(client, { ...args, username: this.username, password: this.password });
+  }
+
+  async cancelSigned(signedCancellationXml: string, storePending = false) {
+    if (!signedCancellationXml.includes("Signature")) throw new Error("SIGNED_CANCELLATION_XML_REQUIRED");
+    return this.cancelCall("cancel_signatureAsync", { xml: signedCancellationXml, store_pending: storePending });
+  }
+
+  async getSatStatus(input: { issuerRfc: string; receiverRfc: string; uuid: string; total: string }) {
+    return this.cancelCall("get_sat_statusAsync", {
+      taxpayer_id: input.issuerRfc,
+      rtaxpayer_id: input.receiverRfc,
+      uuid: input.uuid,
+      total: input.total,
+    });
   }
 }
