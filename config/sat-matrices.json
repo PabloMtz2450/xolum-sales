@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "policy": "DENY_UNCERTIFIED_STAMPING",
+  "sources": [
+    {
+      "id": "SAT-CFDI40",
+      "document": "Matriz de códigos de error para CFDI 4.0",
+      "url": "https://www.sat.gob.mx/cs/Satellite?blobcol=urldata&blobkey=id&blobtable=MungoBlobs&blobwhere=1461175250493&ssbinary=true",
+      "appliesTo": ["I", "E", "T", "N", "P"],
+      "status": "PENDING_VERIFIED_IMPORT",
+      "requiredCoverage": 100
+    },
+    {
+      "id": "SAT-REP20",
+      "document": "Matriz de códigos de error del Complemento para Recepción de Pagos 2.0",
+      "url": "https://www.sat.gob.mx/cs/Satellite?blobcol=urldata&blobkey=id&blobtable=MungoBlobs&blobwhere=1461175071013&ssbinary=true",
+      "appliesTo": ["P"],
+      "status": "PENDING_VERIFIED_IMPORT",
+      "requiredCoverage": 100
+    }
+  ],
+  "productionGate": {
+    "xsdValidation": true,
+    "xsltCadenaOriginalValidation": true,
+    "catalogValidityByIssueDate": true,
+    "officialMatrixCoverage": 100,
+    "pacCertificationSuite": true,
+    "goldenXmlFixtures": true,
+    "negativeFixturesPerRule": true,
+    "secondIndependentReview": true
+  }
+}
