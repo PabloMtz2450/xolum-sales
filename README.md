@@ -36,6 +36,10 @@ Sales no timbra ni permite reconstruir manualmente la factura. Al liberar un ped
 
 Consulta `docs/CFDI-40-HANDOFF.md` y `docs/INVOICE-PREPARATION-API.md`.
 
+### Estado de certificación fiscal
+
+El motor aplica validaciones preventivas y bloquea la habilitación productiva mientras no exista cobertura comprobada del 100% de la matriz CFDI 4.0, la matriz del complemento, XSD/catálogos vigentes, pruebas criptográficas, suite del PAC y una segunda revisión independiente. Consulta `docs/FISCAL-VALIDATION.md`.
+
 ## Integración con TMS
 
 XOLUM Sales y TMS.dev permanecen separados. Sales enviará pedidos confirmados mediante una API versionada y recibirá eventos logísticos mediante webhooks firmados. Nunca accederá directamente a la base de datos del TMS.
