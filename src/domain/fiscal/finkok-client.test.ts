@@ -5,7 +5,7 @@ describe("Finkok SOAP integration", () => {
   it("pins official sandbox and production WSDLs", () => {
     expect(FINKOK_ENDPOINTS.SANDBOX.stamp).toContain("demo-facturacion.finkok.com");
     expect(FINKOK_ENDPOINTS.PRODUCTION.stamp).toContain("facturacion.finkok.com");
-    expect(FINKOK_ENDPOINTS.SANDBOX.cancel).toEndWith("/cancel.wsdl");
+    expect(FINKOK_ENDPOINTS.SANDBOX.cancel).toMatch(/\/cancel\.wsdl$/);
   });
 
   it("normalizes a successful stamp response", () => {
