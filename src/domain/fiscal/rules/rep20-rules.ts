@@ -1,5 +1,6 @@
 import type { InvoicePreparationPayload } from "../../cfdi40";
 import type { PrestampFinding } from "../prestamp-validation";
+import { formatDecimal, parseDecimal, subtract } from "../calculations";
 
 type RelatedDocument = {
   currency?: string;
@@ -25,7 +26,11 @@ type Payment = {
 };
 
 const SOURCE = "https://www.sat.gob.mx/cs/Satellite?blobcol=urldata&blobkey=id&blobtable=MungoBlobs&blobwhere=1461175071013&ssbinary=true";
-const positive = (value?: string) => value !== undefined && /^\d+(\.\d+)?$/.test(value) && Number(value) > 0;
+const positive = (value?: string) => {
+  if (value === undefined || !/^\d+(\.\d+)?$/.test(value)) return false;
+  return parseDecimal(value).units > 0n;
+};
+const equalsOne = (value?: string) => value === undefined || formatDecimal(parseDecimal(value), 6) === "1.000000";
 
 export type Rep20Rule = {
   code: string;
@@ -37,7 +42,7 @@ export const REP20_EXECUTABLE_RULES: readonly Rep20Rule[] = [
   { code: "CRP20212", condition: "FormaDePagoP no puede ser 99.", test: p => p.paymentForm !== "99" },
   { code: "CRP20213", condition: "MonedaP no puede ser XXX.", test: p => p.currency !== "XXX" },
   { code: "CRP20214", condition: "TipoCambioP es requerido cuando MonedaP no es MXN.", test: p => p.currency === "MXN" || positive(p.exchangeRate) },
-  { code: "CRP20215", condition: "TipoCambioP debe ser 1 cuando MonedaP es MXN.", test: p => p.currency !== "MXN" || p.exchangeRate === undefined || Number(p.exchangeRate) === 1 },
+  { code: "CRP20215", condition: "TipoCambioP debe ser 1 cuando MonedaP es MXN.", test: p => p.currency !== "MXN" || equalsOne(p.exchangeRate) },
   { code: "CRP20218", condition: "Monto debe ser mayor a cero.", test: p => positive(p.amount) },
   { code: "CRP20229", condition: "TipoCadPago solo puede existir con FormaDePagoP 03.", test: p => !p.chainType || p.paymentForm === "03" },
   { code: "CRP20230", condition: "CertPago es requerido cuando existe TipoCadPago.", test: p => !p.chainType || Boolean(p.paymentCertificate) },
@@ -48,11 +53,11 @@ export const REP20_EXECUTABLE_RULES: readonly Rep20Rule[] = [
   { code: "CRP20235", condition: "SelloPago está prohibido cuando no existe TipoCadPago.", test: p => Boolean(p.chainType) || !p.paymentSignature },
   { code: "CRP20236", condition: "MonedaDR no puede ser XXX.", test: (_p,d) => d?.currency !== "XXX" },
   { code: "CRP20237", condition: "EquivalenciaDR es requerida si MonedaDR difiere de MonedaP.", test: (p,d) => !d || d.currency === p.currency || positive(d.equivalence) },
-  { code: "CRP20238", condition: "EquivalenciaDR debe ser 1 si las monedas coinciden.", test: (p,d) => !d || d.currency !== p.currency || d.equivalence === undefined || Number(d.equivalence) === 1 },
+  { code: "CRP20238", condition: "EquivalenciaDR debe ser 1 si las monedas coinciden.", test: (p,d) => !d || d.currency !== p.currency || equalsOne(d.equivalence) },
   { code: "CRP20239", condition: "NumParcialidad debe ser mayor o igual a uno.", test: (_p,d) => !d || Number.isInteger(d.installment) && Number(d.installment) >= 1 },
   { code: "CRP20240", condition: "ImpSaldoAnt debe ser mayor a cero.", test: (_p,d) => !d || positive(d.previousBalance) },
   { code: "CRP20242", condition: "ImpPagado debe ser mayor a cero.", test: (_p,d) => !d || positive(d.paidAmount) },
-  { code: "CRP20244", condition: "ImpSaldoInsoluto debe ser igual a saldo anterior menos pagado.", test: (_p,d) => !d || (positive(d.previousBalance) && positive(d.paidAmount) && Number(d.remainingBalance) >= 0 && Math.abs(Number(d.previousBalance) - Number(d.paidAmount) - Number(d.remainingBalance)) < 0.000001) },
+  { code: "CRP20244", condition: "ImpSaldoInsoluto debe ser igual a saldo anterior menos pagado.", test: (_p,d) => !d || (positive(d.previousBalance) && positive(d.paidAmount) && d.remainingBalance !== undefined && /^\d+(\.\d+)?$/.test(d.remainingBalance) && formatDecimal(subtract(parseDecimal(d.previousBalance!), parseDecimal(d.paidAmount!)), 6) === formatDecimal(parseDecimal(d.remainingBalance), 6)) },
   { code: "CRP20245", condition: "ObjetoImpDR debe existir.", test: (_p,d) => !d || Boolean(d.taxObject) },
   { code: "CRP20246", condition: "ImpuestosDR es requerido cuando ObjetoImpDR indica impuestos.", test: (_p,d) => !d || d.taxObject !== "02" || Boolean(d.taxes) },
   { code: "CRP20247", condition: "ImpuestosDR está prohibido cuando ObjetoImpDR no indica impuestos.", test: (_p,d) => !d || d.taxObject === "02" || !d.taxes },
