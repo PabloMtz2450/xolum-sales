@@ -1,5 +1,6 @@
 import type { InvoicePreparationPayload, ValidationIssue } from "../cfdi40";
 import { validateRep20 } from "./rules/rep20-rules";
+import { formatDecimal, parseDecimal, subtract, validateDocumentTotals } from "./calculations";
 
 export const PRESTAMP_LAYERS = [
   "DATA_FORMAT",
@@ -73,7 +74,6 @@ export type PrestampFinding = ValidationIssue & {
 const decimal = (value?: string) => value !== undefined && /^-?\d+(\.\d+)?$/.test(value);
 const money = (value?: string) => decimal(value) && Number(value) >= 0;
 const uuid = (value: string) => /^[0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(value);
-const round = (value: number, decimals = 2) => Number(value.toFixed(decimals));
 const catalogActive = (context: ValidationContext, catalog: string, key?: string) => {
   if (!key) return false;
   const date = new Date(context.issueDate).getTime();
@@ -137,14 +137,15 @@ const baseRules: VersionedFiscalRule[] = [
     message: "Los importes calculados no coinciden con conceptos, impuestos o total.",
     positiveFixture: "fixtures/cfdi40/calculation-valid.json", negativeFixture: "fixtures/cfdi40/calculation-mismatch.json",
     version: "2026.07", severity: "ERROR",
-    evaluate: (d) => {
-      const concepts = round(d.cfdi.concepts.reduce((sum,x) => sum + Number(x.amount),0));
-      const discounts = round(d.cfdi.concepts.reduce((sum,x) => sum + Number(x.discount ?? 0),0));
-      const transfers = round(Number(d.cfdi.transferredTaxes ?? 0));
-      const withholdings = round(Number(d.cfdi.withheldTaxes ?? 0));
-      return concepts === round(Number(d.cfdi.subtotal)) &&
-        round(concepts - discounts + transfers - withholdings) === round(Number(d.cfdi.total));
-    },
+    evaluate: (d) => validateDocumentTotals({
+      concepts: d.cfdi.concepts.map(concept => ({
+        quantity: concept.quantity, unitValue: concept.unitValue, amount: concept.amount,
+        discount: concept.discount, taxes: concept.taxes.map(({ base, factorType, rateOrQuota, amount }) => ({ base, factorType, rateOrQuota, amount })),
+      })),
+      subtotal: d.cfdi.subtotal, discount: d.cfdi.discount,
+      transferredTaxes: d.cfdi.transferredTaxes, withheldTaxes: d.cfdi.withheldTaxes,
+      total: d.cfdi.total,
+    }).length === 0,
   },
   {
     code: "XLM-REL-001", profiles: ["I","E","T","P"], layer: "CFDI_RELATIONS",
@@ -220,7 +221,8 @@ const paymentRules: VersionedFiscalRule[] = [
       const docs = payload?.payments?.flatMap(p => p.relatedDocuments ?? []) ?? [];
       return docs.length > 0 && docs.every(x => (x.installment ?? 0) >= 1 && money(x.previousBalance) &&
         money(x.paidAmount) && money(x.remainingBalance) &&
-        round(Number(x.previousBalance) - Number(x.paidAmount), 6) === round(Number(x.remainingBalance), 6));
+        x.previousBalance !== undefined && x.paidAmount !== undefined && x.remainingBalance !== undefined &&
+        formatDecimal(subtract(parseDecimal(x.previousBalance), parseDecimal(x.paidAmount)), 6) === formatDecimal(parseDecimal(x.remainingBalance), 6));
     },
   },
   {
