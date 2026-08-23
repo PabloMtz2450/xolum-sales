@@ -1,5 +1,6 @@
 import { createClientAsync, type Client } from "soap";
 import { sha256 } from "./production-readiness";
+import { verifySignedCancellationXml } from "../../server/fiscal/secure-xml-verifier";
 
 export const FINKOK_ENDPOINTS = {
   SANDBOX: {
@@ -73,18 +74,27 @@ export class FinkokClient {
     private readonly username: string,
     private readonly password: string,
     private readonly environment: keyof typeof FINKOK_ENDPOINTS = "SANDBOX",
+    private readonly timeoutMs = 15_000,
     private readonly clientFactory: (wsdl: string) => Promise<Client> = async wsdl => {
-      return createClientAsync(wsdl, { disableCache: true });
+      return createClientAsync(wsdl, { disableCache: true, wsdl_options: { timeout: 10_000 } });
     },
   ) {
     if (!username || !password) throw new Error("FINKOK_CREDENTIALS_REQUIRED");
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 60_000) throw new Error("FINKOK_TIMEOUT_INVALID");
+  }
+
+  private withTimeout<T>(operation: Promise<T>, code: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(code)), this.timeoutMs);
+      operation.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
+    });
   }
 
   private async stampCall(method: "stampAsync" | "quick_stampAsync" | "stampedAsync", xml: string) {
     const client = await this.clientFactory(FINKOK_ENDPOINTS[this.environment].stamp);
     const operation = (client as unknown as Record<string, unknown>)[method] as ((args: Record<string, string>) => Promise<unknown>) | undefined;
     if (!operation) throw new Error(`FINKOK_WSDL_METHOD_MISSING: ${method}`);
-    return operation.call(client, { xml, username: this.username, password: this.password });
+    return this.withTimeout(operation.call(client, { xml, username: this.username, password: this.password }), "FINKOK_STAMP_TIMEOUT");
   }
 
   async stamp(xml: string): Promise<FinkokStampResult> {
@@ -108,11 +118,11 @@ export class FinkokClient {
     const client = await this.clientFactory(FINKOK_ENDPOINTS[this.environment].cancel);
     const operation = (client as unknown as Record<string, unknown>)[method] as ((parameters: Record<string, string | boolean>) => Promise<unknown>) | undefined;
     if (!operation) throw new Error(`FINKOK_WSDL_METHOD_MISSING: ${method}`);
-    return operation.call(client, { ...args, username: this.username, password: this.password });
+    return this.withTimeout(operation.call(client, { ...args, username: this.username, password: this.password }), "FINKOK_CANCEL_TIMEOUT");
   }
 
   async cancelSigned(signedCancellationXml: string, storePending = false) {
-    if (!signedCancellationXml.includes("Signature")) throw new Error("SIGNED_CANCELLATION_XML_REQUIRED");
+    verifySignedCancellationXml(signedCancellationXml);
     return this.cancelCall("cancel_signatureAsync", { xml: signedCancellationXml, store_pending: storePending });
   }
 
