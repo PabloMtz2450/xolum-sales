@@ -105,6 +105,7 @@ model Organization {
   fiscalArtifacts FiscalArtifact[]
   idempotencyRecords IdempotencyRecord[]
   integrationDeliveries IntegrationDelivery[]
+  stampAttempts FiscalStampAttempt[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }
@@ -519,6 +520,8 @@ model AuditEvent {
   resourceId     String
   correlationId  String
   payloadHash    String?
+  previousHash   String?
+  eventHash      String       @unique
   metadata       Json?
   organization   Organization @relation(fields: [organizationId], references: [id])
   actor          User?        @relation(fields: [actorUserId], references: [id])
@@ -548,6 +551,7 @@ model FiscalArtifact {
 
 model FiscalStampAttempt {
   id                   String       @id @default(cuid())
+  organizationId       String
   invoicePreparationId String
   attemptNumber        Int
   idempotencyKey       String
@@ -562,8 +566,11 @@ model FiscalStampAttempt {
   startedAt            DateTime     @default(now())
   completedAt          DateTime?
   preparation          InvoicePreparation @relation(fields: [invoicePreparationId], references: [id])
+  organization         Organization @relation(fields: [organizationId], references: [id])
   @@unique([invoicePreparationId, attemptNumber])
-  @@unique([idempotencyKey])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status, startedAt])
+  @@index([invoicePreparationId, status, startedAt])
   @@index([status, startedAt])
   @@index([uuid])
 }
