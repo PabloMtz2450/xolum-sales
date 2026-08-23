@@ -48,12 +48,65 @@ El TMS es un módulo contratable por separado. Sin TMS conectado, Sales no ofrec
 
 ## Desarrollo local
 
-```bash
-npm install
+Requisitos: Node.js 22+, Docker Desktop y Git.
+
+### Primera ejecución en Windows PowerShell
+
+```powershell
+git clone https://github.com/PabloMtz2450/xolum-sales.git
+cd xolum-sales
+Copy-Item .env.local.example .env
+npm ci
+docker compose up -d
+npm run local:setup
+npm run local:doctor
 npm run dev
 ```
 
-Abre http://localhost:3000.
+Abre:
+
+- Aplicación: http://localhost:3000
+- Inspector de datos ficticios: http://localhost:3000/demo-data
+- Base de datos visual: ejecuta `npm run db:studio` y abre http://localhost:5555
+
+### Usuarios ficticios
+
+La semilla genera usuarios `OWNER`, `ADMIN`, `SALES_MANAGER`, `SALES_REP`, `CREDIT`, `INVENTORY`, `AUDITOR` y `VIEWER`. Todos usan temporalmente:
+
+```text
+Contraseña local: XolumDemo!2026
+```
+
+El seed muestra la lista completa en la terminal. Estas credenciales sólo existen para desarrollo local; no se habilitan en producción y todavía falta conectar la pantalla de inicio de sesión.
+
+### Datos incluidos
+
+- Dos empresas ficticias para probar aislamiento multiempresa.
+- Ocho perfiles de usuario y sesiones demo.
+- Cuatro clientes con RFC, contactos y direcciones ficticias.
+- Cinco productos con claves SAT, precios, existencias y movimientos.
+- Lista de precios, oportunidades, cotización y pedidos.
+- Una preparación CFDI 4.0 en borrador con concepto e IVA.
+
+### Reiniciar los datos
+
+```powershell
+npm run local:reset
+```
+
+El comando elimina exclusivamente la base configurada en `.env`, vuelve a aplicar migraciones y ejecuta el seed. Revisa siempre `DATABASE_URL` antes de usarlo.
+
+### Detener PostgreSQL
+
+```powershell
+docker compose stop
+```
+
+Para eliminar también el volumen local de prueba:
+
+```powershell
+docker compose down -v
+```
 
 ## Estado
 
