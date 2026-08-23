@@ -10,6 +10,12 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "local:doctor": "tsx scripts/local-doctor.ts",
+    "local:setup": "prisma migrate deploy && prisma db seed",
+    "local:reset": "prisma migrate reset --force",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "security:audit": "npm audit --audit-level=high"
@@ -18,6 +24,7 @@
     "@aws-sdk/client-s3": "3.1116.0",
     "@prisma/client": "6.19.3",
     "@xmldom/xmldom": "0.9.12",
+    "dotenv": "17.2.3",
     "lucide-react": "0.468.0",
     "next": "15.5.23",
     "react": "19.1.5",
@@ -34,6 +41,7 @@
     "@types/react-dom": "19.0.0",
     "@vitest/coverage-v8": "4.1.11",
     "prisma": "6.19.3",
+    "tsx": "4.20.5",
     "typescript": "5.7.3",
     "vitest": "4.1.11"
   },
