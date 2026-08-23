@@ -319,6 +319,7 @@ model InvoicePreparation {
   withheldTaxes       Decimal      @default(0)
   total               Decimal
   payloadHash         String?
+  signedXmlSha256     String?
   lockedAt            DateTime?
   lockedBy            String?
   validationErrors    Json?
