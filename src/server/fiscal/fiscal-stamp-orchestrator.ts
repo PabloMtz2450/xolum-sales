@@ -8,6 +8,7 @@ export type FiscalPreparation = {
   organizationId: string;
   status: "DRAFT" | "VALIDATING" | "READY" | "STAMPING" | "REJECTED" | "UNCERTAIN";
   payloadHash: string;
+  signedXmlSha256?: string;
 };
 
 export interface FiscalTransaction {
@@ -79,7 +80,7 @@ export class FiscalStampOrchestrator {
       if (idempotency === "IN_PROGRESS") throw new Error("STAMP_ALREADY_IN_PROGRESS");
       if (idempotency === "REPLAY") return null;
       const locked = await tx.lockPreparation({ organizationId: command.context.organizationId, preparationId: command.preparationId });
-      if (locked.payloadHash !== requestSha256) throw new Error("LOCKED_PAYLOAD_HASH_MISMATCH");
+      if (locked.signedXmlSha256 !== requestSha256) throw new Error("LOCKED_SIGNED_XML_HASH_MISMATCH");
       await tx.transition({ preparationId: locked.id, from: ["READY"], to: "STAMPING" });
       await tx.appendAudit({ organizationId: locked.organizationId, actorUserId: command.context.userId, action: "FISCAL_STAMP_STARTED", resourceId: locked.id, correlationId: command.correlationId, payloadHash: requestSha256 });
       return locked;
