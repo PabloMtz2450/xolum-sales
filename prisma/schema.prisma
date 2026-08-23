@@ -23,6 +23,9 @@ enum OpportunityStage { PROSPECT CONTACTED QUALIFIED QUOTED NEGOTIATION APPROVAL
 enum OrderStatus { DRAFT VALIDATION CONFIRMED PREPARING DISPATCHED DELIVERED CLOSED CANCELLED }
 enum AddressType { FISCAL BILLING BRANCH WAREHOUSE DELIVERY TEMPORARY }
 enum InventoryMovementType { RECEIPT RESERVATION RELEASE SHIPMENT ADJUSTMENT TRANSFER }
+enum SessionStatus { ACTIVE REVOKED EXPIRED }
+enum FiscalProcessStatus { DRAFT VALIDATING READY STAMPING STAMPED REJECTED UNCERTAIN CANCEL_PENDING CANCELLED FAILED }
+enum ArtifactType { PRECFDI STAMPED_XML PDF CANCELLATION_ACK PAC_REQUEST PAC_RESPONSE ORIGINAL_STRING }
 
 model Organization {
   id            String       @id @default(cuid())
@@ -36,6 +39,11 @@ model Organization {
   orders        SalesOrder[]
   opportunities Opportunity[]
   invoicePreparations InvoicePreparation[]
+  sessions       AuthSession[]
+  auditEvents    AuditEvent[]
+  fiscalArtifacts FiscalArtifact[]
+  idempotencyRecords IdempotencyRecord[]
+  integrationDeliveries IntegrationDelivery[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }
@@ -45,6 +53,8 @@ model User {
   email       String       @unique
   name        String?
   memberships Membership[]
+  sessions    AuthSession[]
+  auditEvents AuditEvent[]
   createdAt   DateTime     @default(now())
 }
 
@@ -151,6 +161,7 @@ model Product {
   active         Boolean     @default(true)
   organization   Organization @relation(fields: [organizationId], references: [id])
   stocks         Stock[]
+  movements      InventoryMovement[]
   priceItems     PriceListItem[]
   quoteLines     QuoteLine[]
   orderLines     SalesOrderLine[]
@@ -188,6 +199,7 @@ model InventoryMovement {
   quantity    Decimal
   reference   String?
   warehouse   Warehouse             @relation(fields: [warehouseId], references: [id])
+  product     Product               @relation(fields: [productId], references: [id])
   createdAt   DateTime              @default(now())
 }
 
@@ -281,7 +293,7 @@ model InvoicePreparation {
   customerId          String
   salesOrderId        String
   version             Int          @default(1)
-  status              String       @default("DRAFT")
+  status              FiscalProcessStatus @default(DRAFT)
   cfdiVersion         String       @default("4.0")
   voucherType         String       @default("I")
   series              String?
@@ -316,9 +328,14 @@ model InvoicePreparation {
   customer            Customer     @relation(fields: [customerId], references: [id])
   salesOrder          SalesOrder   @relation(fields: [salesOrderId], references: [id])
   concepts            FiscalConcept[]
+  artifacts           FiscalArtifact[]
+  stampAttempts       FiscalStampAttempt[]
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   @@unique([salesOrderId, version])
+  @@index([organizationId, status, createdAt])
+  @@index([customerId, createdAt])
+  @@index([payloadHash])
 }
 
 model FiscalConcept {
@@ -382,13 +399,109 @@ model IntegrationDelivery {
   system         String
   event          String
   correlationId  String
-  idempotencyKey String?
+  idempotencyKey String
   direction      String
   status         String
   attempts       Int      @default(0)
   payloadHash    String?
   lastError      String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  @@unique([system, idempotencyKey])
+  @@unique([organizationId, system, idempotencyKey])
+  @@index([organizationId, status, createdAt])
+  @@index([correlationId])
+}
+
+model AuthSession {
+  id             String        @id @default(cuid())
+  organizationId String
+  userId         String
+  tokenHash      String        @unique
+  status         SessionStatus @default(ACTIVE)
+  mfaVerifiedAt  DateTime?
+  expiresAt      DateTime
+  lastSeenAt     DateTime?
+  ipHash         String?
+  userAgentHash  String?
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+  createdAt      DateTime      @default(now())
+  revokedAt      DateTime?
+  @@index([organizationId, userId, status])
+  @@index([expiresAt])
+}
+
+model IdempotencyRecord {
+  id             String       @id @default(cuid())
+  organizationId String
+  scope          String
+  key            String
+  requestHash    String
+  responseHash   String?
+  status         String
+  lockedUntil    DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  @@unique([organizationId, scope, key])
+  @@index([organizationId, status, lockedUntil])
+}
+
+model AuditEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  resourceType   String
+  resourceId     String
+  correlationId  String
+  payloadHash    String?
+  metadata       Json?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  actor          User?        @relation(fields: [actorUserId], references: [id])
+  createdAt      DateTime     @default(now())
+  @@index([organizationId, resourceType, resourceId, createdAt])
+  @@index([correlationId])
+}
+
+model FiscalArtifact {
+  id                   String       @id @default(cuid())
+  organizationId       String
+  invoicePreparationId String
+  type                 ArtifactType
+  objectKey            String
+  sha256               String
+  byteLength           Int
+  contentType          String
+  encryptionKeyId      String?
+  immutableUntil       DateTime?
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  preparation          InvoicePreparation @relation(fields: [invoicePreparationId], references: [id])
+  createdAt            DateTime     @default(now())
+  @@unique([organizationId, objectKey])
+  @@unique([invoicePreparationId, type, sha256])
+  @@index([organizationId, invoicePreparationId, type])
+}
+
+model FiscalStampAttempt {
+  id                   String       @id @default(cuid())
+  invoicePreparationId String
+  attemptNumber        Int
+  idempotencyKey       String
+  requestSha256        String
+  responseSha256       String?
+  pac                  String       @default("FINKOK")
+  environment          String
+  status               FiscalProcessStatus
+  pacCode              String?
+  pacMessage           String?
+  uuid                 String?
+  startedAt            DateTime     @default(now())
+  completedAt          DateTime?
+  preparation          InvoicePreparation @relation(fields: [invoicePreparationId], references: [id])
+  @@unique([invoicePreparationId, attemptNumber])
+  @@unique([idempotencyKey])
+  @@index([status, startedAt])
+  @@index([uuid])
 }
