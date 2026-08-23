@@ -150,7 +150,7 @@ export function validateInvoicePreparation(input: InvoicePreparationPayload): Va
     if (!concept.productServiceCode) issues.push({ path: `${base}.productServiceCode`, code: "SAT_PRODUCT", message: "Falta la clave SAT." });
     if (!concept.unitCode) issues.push({ path: `${base}.unitCode`, code: "SAT_UNIT", message: "Falta la unidad SAT." });
     if (!concept.description.trim()) issues.push({ path: `${base}.description`, code: "DESCRIPTION", message: "Falta la descripción." });
-    if (Number(concept.quantity) <= 0) issues.push({ path: `${base}.quantity`, code: "QUANTITY", message: "La cantidad debe ser mayor a cero." });
+    if (!/^\d+(\.\d+)?$/.test(concept.quantity) || BigInt(concept.quantity.replace(".", "")) <= 0n) issues.push({ path: `${base}.quantity`, code: "QUANTITY", message: "La cantidad debe ser un decimal positivo." });
     if (concept.customerPurchaseOrder && !concept.customerPoLine) {
       issues.push({ path: `${base}.customerPoLine`, code: "PO_LINE", message: "La OC por concepto requiere posición de cliente." });
     }
