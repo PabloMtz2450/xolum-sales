@@ -27,7 +27,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
       - run: npx prisma validate
-      - run: npm audit --audit-level=high
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:coverage
       - run: npm run build
