@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    container_name: xolum-sales-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: xolum
+      POSTGRES_PASSWORD: xolum_local_2026
+      POSTGRES_DB: xolum_sales
+    ports:
+      - "5432:5432"
+    volumes:
+      - xolum_sales_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xolum -d xolum_sales"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  xolum_sales_pgdata:
