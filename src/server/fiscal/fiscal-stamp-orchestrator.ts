@@ -1,5 +1,6 @@
 import "server-only";
 import { sha256 } from "../../domain/fiscal/production-readiness";
+import { assertReadyToStamp, type FiscalArtifactEvidence } from "../../domain/fiscal/production-readiness";
 import type { FinkokStampResult } from "../../domain/fiscal/finkok-client";
 import { assertAuthorized, type SecurityContext } from "../security/authorization";
 
@@ -16,7 +17,7 @@ export interface FiscalTransaction {
   lockPreparation(input: { organizationId: string; preparationId: string }): Promise<FiscalPreparation>;
   transition(input: { preparationId: string; from: FiscalPreparation["status"][]; to: FiscalPreparation["status"] | "STAMPED" | "FAILED"; reason?: string }): Promise<void>;
   createAttempt(input: { preparationId: string; idempotencyKey: string; requestSha256: string; environment: "SANDBOX" | "PRODUCTION" }): Promise<number>;
-  completeAttempt(input: { preparationId: string; attemptNumber: number; status: "STAMPED" | "REJECTED" | "UNCERTAIN"; responseSha256?: string; uuid?: string; pacCode?: string; pacMessage?: string }): Promise<void>;
+  completeAttempt(input: { preparationId: string; attemptNumber: number; status: "STAMPED" | "REJECTED" | "UNCERTAIN" | "FAILED"; responseSha256?: string; uuid?: string; pacCode?: string; pacMessage?: string }): Promise<void>;
   completeIdempotency(input: { organizationId: string; scope: "STAMP"; key: string; responseHash?: string; status: "COMPLETED" | "REJECTED" | "UNCERTAIN" }): Promise<void>;
   appendAudit(input: { organizationId: string; actorUserId: string; action: string; resourceId: string; correlationId: string; payloadHash?: string }): Promise<void>;
 }
@@ -27,7 +28,7 @@ export interface FiscalRepository {
 }
 
 export interface FiscalXmlPipeline {
-  buildUnsignedXml(preparationId: string): Promise<string>;
+  buildUnsignedXml(preparationId: string, organizationId: string): Promise<string>;
   generateOriginalString(unsignedXml: string): Promise<string>;
   sign(unsignedXml: string, originalString: string): Promise<string>;
   validateXsd(xml: string): Promise<{ ok: boolean; errors: string[]; schemas: string[] }>;
@@ -41,6 +42,10 @@ export interface ImmutableFiscalStorage {
 
 export interface StampPac {
   stamp(xml: string): Promise<FinkokStampResult>;
+}
+
+export interface ProductionEvidenceProvider {
+  load(): Promise<FiscalArtifactEvidence>;
 }
 
 export type StampCommand = {
@@ -57,13 +62,15 @@ export class FiscalStampOrchestrator {
     private readonly xml: FiscalXmlPipeline,
     private readonly storage: ImmutableFiscalStorage,
     private readonly pac: StampPac,
+    private readonly readiness: ProductionEvidenceProvider,
   ) {}
 
   async execute(command: StampCommand) {
     assertAuthorized(command.context, "fiscal:stamp", command.context.organizationId);
     if (!/^[A-Za-z0-9:_-]{16,128}$/.test(command.idempotencyKey)) throw new Error("IDEMPOTENCY_KEY_INVALID");
+    if (command.environment === "PRODUCTION") assertReadyToStamp(await this.readiness.load());
 
-    const unsignedXml = await this.xml.buildUnsignedXml(command.preparationId);
+    const unsignedXml = await this.xml.buildUnsignedXml(command.preparationId, command.context.organizationId);
     const originalString = await this.xml.generateOriginalString(unsignedXml);
     const signedXml = await this.xml.sign(unsignedXml, originalString);
     const requestSha256 = sha256(signedXml);
@@ -92,15 +99,23 @@ export class FiscalStampOrchestrator {
       return { replay: true, ...replay };
     }
 
-    await this.storage.put({
-      organizationId: preparation.organizationId, preparationId: preparation.id, type: "PRECFDI",
-      bytes: Buffer.from(signedXml, "utf8"), sha256: requestSha256, contentType: "application/xml",
-    });
-
-    const attemptNumber = await this.repository.transaction(tx => tx.createAttempt({
-      preparationId: preparation.id, idempotencyKey: command.idempotencyKey,
-      requestSha256, environment: command.environment,
-    }));
+    let attemptNumber: number;
+    try {
+      await this.storage.put({
+        organizationId: preparation.organizationId, preparationId: preparation.id, type: "PRECFDI",
+        bytes: Buffer.from(signedXml, "utf8"), sha256: requestSha256, contentType: "application/xml",
+      });
+      attemptNumber = await this.repository.transaction(tx => tx.createAttempt({
+        preparationId: preparation.id, idempotencyKey: command.idempotencyKey,
+        requestSha256, environment: command.environment,
+      }));
+    } catch (error) {
+      await this.repository.transaction(async tx => {
+        await tx.transition({ preparationId: preparation.id, from: ["STAMPING"], to: "FAILED", reason: "PRE_PAC_PERSISTENCE_FAILED" });
+        await tx.completeIdempotency({ organizationId: preparation.organizationId, scope: "STAMP", key: command.idempotencyKey, status: "REJECTED" });
+      });
+      throw error;
+    }
 
     let result: FinkokStampResult;
     try {
@@ -124,12 +139,22 @@ export class FiscalStampOrchestrator {
       return { replay: false, accepted: false, incidences: result.incidences };
     }
 
-    await this.xml.verifyStampedResponse({ sentXml: signedXml, result });
-    const stampedSha256 = sha256(result.stampedXml);
-    await this.storage.put({
-      organizationId: preparation.organizationId, preparationId: preparation.id, type: "STAMPED_XML",
-      bytes: Buffer.from(result.stampedXml, "utf8"), sha256: stampedSha256, contentType: "application/xml",
-    });
+    let stampedSha256: string;
+    try {
+      await this.xml.verifyStampedResponse({ sentXml: signedXml, result });
+      stampedSha256 = sha256(result.stampedXml);
+      await this.storage.put({
+        organizationId: preparation.organizationId, preparationId: preparation.id, type: "STAMPED_XML",
+        bytes: Buffer.from(result.stampedXml, "utf8"), sha256: stampedSha256, contentType: "application/xml",
+      });
+    } catch (error) {
+      await this.repository.transaction(async tx => {
+        await tx.completeAttempt({ preparationId: preparation.id, attemptNumber, status: "UNCERTAIN", uuid: result.uuid, pacMessage: error instanceof Error ? error.message : "PAC_RESPONSE_VERIFICATION_FAILED" });
+        await tx.transition({ preparationId: preparation.id, from: ["STAMPING"], to: "UNCERTAIN", reason: "PAC_ACCEPTED_LOCAL_VERIFICATION_FAILED" });
+        await tx.completeIdempotency({ organizationId: preparation.organizationId, scope: "STAMP", key: command.idempotencyKey, status: "UNCERTAIN" });
+      });
+      throw new Error("STAMP_ACCEPTED_BUT_LOCAL_VERIFICATION_FAILED");
+    }
     await this.repository.transaction(async tx => {
       await tx.completeAttempt({ preparationId: preparation.id, attemptNumber, status: "STAMPED", responseSha256: stampedSha256, uuid: result.uuid });
       await tx.transition({ preparationId: preparation.id, from: ["STAMPING"], to: "STAMPED" });
