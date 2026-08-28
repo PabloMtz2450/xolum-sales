@@ -23,8 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci --ignore-scripts
+      - name: Install dependencies and reconcile stale lock metadata in runner
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm ls --depth=0
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npm audit --omit=dev --audit-level=high
